@@ -1,0 +1,62 @@
+
+module Main ()
+
+  import Graphics.UI.Gtk
+  import Graphics.UI.Gtk.Glade
+
+  import Directory doesFileExist
+  import System    system
+
+;;  def gladeResource  "easyscan.glade"
+  def gladeResource  "/usr/local/src/easyscan/easyscan.glade"
+  def imageBasePath  "/home/penny/Scans/scan-"
+  def imageExtension "png"
+
+  def scanImageCommand     (pipe "scanimage" "convert -modulate 200 - png:-")
+  def (printCommand n)     (++ "lp -o scaling=100 -n " (show n))
+  def (printScanCommand n) (pipe scanImageCommand (printCommand n))
+
+  def (if- True  t e) t
+  def (if- False t e) e
+
+  def inc (+ 1)
+
+  def (void x) (>> x (return ()))
+
+  def (quoteString str) (++ "'" str "'")
+  def (pipe a b)        (++ a " | " b)
+  def (backgroundRun a) (++ a " &")
+  def (outputTo a b)    (++ a " > " b)
+
+  def (generateFilename basePath extension)
+    letl (generateFilenameFrom (n 1))
+      def newPath
+        ++ basePath (show n) (if- (== extension "") "" ".") extension
+      letdo (fileExists (doesFileExist newPath))
+        if- fileExists
+          generateFilenameFrom (inc n)
+          return newPath
+
+  def doSaveAction
+    letdo (filename (generateFilename imageBasePath imageExtension))
+      system (backgroundRun (outputTo scanImageCommand (quoteString filename)))
+
+  def (doPrintAction numberOfCopies)
+    system (backgroundRun (printScanCommand numberOfCopies))
+
+  defdo main
+    initGUI
+    letdo ((Just xml)  (xmlNew gladeResource)
+           window      (xmlGetWidget xml castToWindow     "window1")
+           spinCount   (xmlGetWidget xml castToSpinButton "spinbutton1")
+           quitButton  (xmlGetWidget xml castToButton     "button3")
+           saveButton  (xmlGetWidget xml castToButton     "button2")
+           printButton (xmlGetWidget xml castToButton     "button1"))
+      onDestroy window      mainQuit
+      onClicked quitButton  (widgetDestroy window)
+      onClicked saveButton  (void doSaveAction)
+      onClicked printButton
+        void (>>= (spinButtonGetValueAsInt spinCount) doPrintAction)
+      widgetShowAll window
+      mainGUI
+
